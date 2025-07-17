@@ -27,46 +27,50 @@
 
 	update_icon()
 
-/obj/structure/cage/autoclose/New() //Close when created - catching any creatures on the same turf
-	..()
+///obj/structure/cage/autoclose/New() //Close when created - catching any creatures on the same turf
+//	..()
+//
+//	spawn()
+//		toggle_door() //Open it
+//		toggle_door() //Close it again!
+//
+///obj/structure/cage/autoclose/no_cover
+//	name = "cage (coverless)"
+//	desc = "A large and heavy plasteel box, used to store dangerous animals and humans. This cage has no cover, so keep your distance from the beast contained within."
+//
+///obj/structure/cage/autoclose/no_cover/toggle_cover(mob/user)
+//	return
+//
+///obj/structure/cage/autoclose/cover/New()
+//	..()
+//
+//	spawn()
+//		toggle_cover()
+//
 
-	spawn()
-		toggle_door() //Open it
-		toggle_door() //Close it again!
+//WORK ON LATER!!
 
-/obj/structure/cage/autoclose/no_cover
-	name = "cage (coverless)"
-	desc = "A large and heavy plasteel box, used to store dangerous animals and humans. This cage has no cover, so keep your distance from the beast contained within."
-
-/obj/structure/cage/autoclose/no_cover/toggle_cover(mob/user)
-	return
-
-/obj/structure/cage/autoclose/cover/New()
-	..()
-
-	spawn()
-		toggle_cover()
-
-/obj/structure/cage/Destroy()
-	switch(cover_state)
-		if(C_OPENED)
-			for(var/mob/living/L in get_locked(/datum/locking_category/cage))
-				qdel(L)
-		if(C_CLOSED)
-			for(var/atom/movable/M in contents)
-				qdel(M)
-	..()
-
-/obj/structure/cage/update_icon()
+///obj/structure/cage/Destroy()
+//	switch(cover_state)
+//		if(C_OPENED)
+//			for(var/mob/living/L in get_locked(/datum/locking_category/cage))
+//				qdel(L)
+//		if(C_CLOSED)
+//			for(var/atom/movable/M in contents)
+//				qdel(M)
+//	..()
+//
+/obj/structure/cage/update_appearance(updates)
+	. = ..()
 	overlays = list()
 
 	if(cover_state == C_CLOSED)
 		var/image/cover_overlay = image('icons/obj/cage.dmi', icon_state = "cage_cover", layer = OBJ_LAYER)
-		cover_overlay.plane = FLOAT_PLANE
+		cover_overlay.layer = ABOVE_MOB_LAYER
 		overlays += cover_overlay
 	else if(door_state == C_CLOSED) //Door is only visible when the cover is open
 		var/image/door_overlay = image('icons/obj/cage.dmi', icon_state = "cage_door")
-		door_overlay.plane = relative_plane(ABOVE_HUMAN_PLANE)
+		door_overlay.layer = ABOVE_MOB_LAYER
 		overlays += door_overlay
 
 /obj/structure/cage/attack_animal(mob/living/simple_animal/user)
@@ -86,11 +90,11 @@
 		M.ex_act(severity)
 	..()
 
-/obj/structure/cage/shuttle_act(var/datum/shuttle/S)
-	var/list/affected_mobs = remove_mobs()
-	for(var/atom/movable/M in affected_mobs)
-		M.shuttle_act(S)
-	..()
+///obj/structure/cage/shuttle_act(var/datum/shuttle/S)
+//	var/list/affected_mobs = remove_mobs()
+//	for(var/atom/movable/M in affected_mobs)
+//		M.shuttle_act(S)
+//	..()
 
 /obj/structure/cage/bullet_act(var/obj/item/projectile/Proj)
 	if (!locked_atoms?.len)
@@ -113,31 +117,16 @@
 	set category = "Object"
 	set src in oview(1)
 
-	return AltClick()
+	return alt_click_secondary()
 
-/obj/structure/cage/AltClick()
+/obj/structure/cage/alt_click_secondary(mob/user)
+	. = ..()
 	if(Adjacent(usr) && !usr.incapacitated() && !mob_is_inside(usr))
 		toggle_cover(usr)
 
 /obj/structure/cage/attackby(obj/item/W, mob/user)
-	if(W.is_wrench(user))
-		if(anchored)
-			to_chat(user, "<span class='info'>You start unsecuring \the [src] from \the [loc].</span>")
-		else
-			if(!istype(loc, /turf/simulated/floor)) //Can't secure the cage to space
-				return
-
-			to_chat(user, "<span class='info'>You start securing \the [src] to \the [loc].</span>")
-
-		spawn()
-			W.playtoolsound(src, 100)
-			if(do_after(user, src, 50))
-				anchored = !anchored
-				to_chat(user, "<span class='info'>[anchored ? "You successfully secure \the [src] to \the [loc]." : "You successfully unsecure \the [src] from \the [loc]."]")
-
-		return 1
-	else if(door_state == C_CLOSED)
-		if(W.force >= 20 && (W.is_sharp() >= 1.0 || W.is_hot()))
+	if(door_state == C_CLOSED)
+		if(W.force >= 20 && (W.sharpness == SHARP_EDGED || W.sharpness == SHARP_POINTY || W.damtype == BURN))
 			var/time = 15 SECONDS
 
 			user.visible_message("<span class='danger'>[user] starts forcing \the [src]'s door open with \the [W]!</span>", "<span class='info'>You start forcing \the [src]'s door open with \the [W]. This will take around [(time / 10)] seconds.</span>")
@@ -151,13 +140,23 @@
 			else //No sharpness/hotness
 				to_chat(user, "<span class='info'>\The [W] isn't sharp or hot enough to cut through \the [src]'s bars!</span>")
 
+/obj/structure/cage/wrench_act_secondary(mob/living/user, obj/item/tool)
+	. = ..()
+	if(isinspace() && !anchored) // We want to prevent anchoring a locker in space, but we should still be able to unanchor it there
+		balloon_alert(user, "nothing to anchor to!")
+		return TRUE
+	set_anchored(!anchored)
+	tool.play_tool_sound(src, 75)
+	user.balloon_alert_to_viewers("[anchored ? "anchored" : "unanchored"]")
+	return TRUE
+
 /obj/structure/cage/relaymove(mob/living/user)
 	if(!istype(user))
 		return
 
 	if(cover_state == C_CLOSED)
-		var/time = 30 SECONDS
-		time -= ((user.get_strength() - 1) * 12.5) //Being strong reduces the time needed, down to 5 seconds
+		var/time = 20 SECONDS
+//		time -= ((user.get_strength() - 1) * 12.5) //Being strong reduces the time needed, down to 5 seconds
 
 		to_chat(user, "<span class='info'>You attempt to open \the [src]'s cover from inside. This will take around [(time / 10)] seconds.</span>")
 		if(do_after(user, src, time + rand(-5 SECONDS, 5 SECONDS)))
@@ -170,8 +169,8 @@
 
 	if(mob_is_inside(user)) //Inside the cage
 		if(door_state == C_CLOSED)
-			var/time = 180 SECONDS
-			time -= ((user.get_strength() - 1) * 60) //Being strong reduces the time needed, down to 60 seconds
+			var/time = 120 SECONDS
+//			time -= ((user.get_strength() - 1) * 60) //Being strong reduces the time needed, down to 60 seconds
 
 			to_chat(user, "<span class='info'>You attempt to open \the [src]'s door from inside. This will take around [(time / 10)] seconds.</span>")
 			if(do_after(user, src, time + rand(-5 SECONDS, 5 SECONDS)))
@@ -297,16 +296,16 @@
 				M.forceMove(src.loc)
 				. |= M
 
-/obj/structure/cage/random_mob/New()
-	..()
-	spawn()
-		toggle_cover() // Spawn closed for cargo forwards
-		var/mobtype = pick(existing_typesof(/mob/living/simple_animal) - (existing_typesof_list(blacklisted_mobs) + existing_typesof_list(boss_mobs)))
-		var/mob/living/simple_animal/ourmob = new mobtype
-		add_mob(ourmob)
-
+///obj/structure/cage/random_mob/New()
+//	..()
+//	spawn()
+//		toggle_cover() // Spawn closed for cargo forwards
+//		var/mobtype = pick(existing_typesof(/mob/living/simple_animal) - (existing_typesof_list(blacklisted_mobs) + existing_typesof_list(boss_mobs)))
+//		var/mob/living/simple_animal/ourmob = new mobtype
+//		add_mob(ourmob)
+//
 #undef C_OPENED
 #undef C_CLOSED
 
-/datum/locking_category/cage
-	flags = LOCKED_CAN_LIE_AND_STAND | CANT_BE_MOVED_BY_LOCKED_MOBS
+///datum/locking_category/cage
+//	flags = LOCKED_CAN_LIE_AND_STAND | CANT_BE_MOVED_BY_LOCKED_MOBS
