@@ -149,6 +149,10 @@ GLOBAL_LIST_INIT(loadout_miscunders, generate_loadout_items(/datum/loadout_item/
 	name = "Recolorable Plaid Skirt"
 	item_path = /obj/item/clothing/under/dress/skirt/plaid
 
+/datum/laodout_item/under/miscellaneous/hula_skirt
+	name = "Hula Skirt"
+	item_path = /obj/item/clothing/under/dress/hula
+
 // So, story time - which should hopefully explain the weird name and why this isn't just called
 // `/datum/loadout_item/under/miscellaneous/turtleneck` like the original.
 //
